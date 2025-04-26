@@ -36,7 +36,7 @@ public class Main {
             CONFIG_DEFAULT_KEY_HTTPS_keyStoreFilePath, "",
             CONFIG_DEFAULT_KEY_HTTPS_keyStorePassphrase, "",
             CONFIG_DEFAULT_KEY_IPAddress, "127.0.0.1",
-            CONFIG_DEFAULT_KEY_BasicAuth_active, "false",
+            CONFIG_DEFAULT_KEY_BasicAuth_active, "true",
             CONFIG_DEFAULT_KEY_BasicAuth_username, "",
             CONFIG_DEFAULT_KEY_BasicAuth_password, "",
     };
