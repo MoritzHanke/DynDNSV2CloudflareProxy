@@ -18,33 +18,39 @@ public class Main {
     static String[] configDefaults = {
         "runHTTP", "false",
         "HTTPPort", "80",
-        /*"runHTTPS", "false",
+        "runHTTPS", "false",
         "HTTPsPort", "443",
         "keyStoreFilePath", "",
         "keyStorePassPhrase", "",
-        "IPAddress", "127.0.0.1",*/ //HTTPS not supported
+        "IPAddress", "127.0.0.1", //HTTPS not supported
     };
 
     static String defConfigPath = "./proxy.conf";
+    static String defLogPath = "./dyndnsproxy.log";
 
     public static void main(String[] args) throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException {
 
         String configPath = System.getenv("CONFIG_PATH");
+        String logPath = System.getenv("LOG_PATH");
         Logger logger = Logger.getLogger("Log");
+
+        if(configPath == null){
+            configPath = defConfigPath;
+        }
+
+        if(logPath == null){
+            logPath = defLogPath;
+        }
 
         try {
             FileHandler fh;
             // This block configure the logger with handler and formatter
-            fh = new FileHandler("./dyndnsproxy.log");
+            fh = new FileHandler(logPath);
             logger.addHandler(fh);
             SimpleFormatter formatter = new SimpleFormatter();
             fh.setFormatter(formatter);
         } catch (SecurityException | IOException e) {
             e.printStackTrace();
-        }
-
-        if(configPath == null){
-            configPath = defConfigPath;
         }
 
         Properties properties;
@@ -71,7 +77,7 @@ public class Main {
             try {
                 int port = Integer.parseInt(properties.getProperty("HTTPPort"));
                 httpServer = new DyndnsV2Proxy(ip, port);
-                System.out.printf("HTTPs-Proxy started. Listening on %s:%d",ip, port);
+                System.out.printf("HTTP-Proxy started. Listening on %s:%d\n",ip, port);
             }catch (Exception e){
                 e.printStackTrace();
                 logger.log(Level.SEVERE, e.getMessage(), e);
@@ -79,19 +85,19 @@ public class Main {
         }
 
         //HTTPS not supported (cant test this shit... )
-        /*
+
         if(Boolean.parseBoolean(properties.getProperty("runHTTPS"))){
             try {
                 int port = Integer.parseInt(properties.getProperty("HTTPsPort"));
                 String keyStoreFilePath = properties.getProperty("keyStoreFilePath");
                 String keyStorePassPhrase = properties.getProperty("keyStorePassPhrase");
                 httpsServer = new DyndnsV2Proxy(ip, port, keyStoreFilePath, keyStorePassPhrase);
-                System.out.printf("HTTPs-Proxy started. Listening on %s:%d",ip, port);
+                System.out.printf("HTTPs-Proxy started. Listening on %s:%d\n",ip, port);
             }catch (Exception e){
                 logger.log(Level.SEVERE, e.getMessage(), e);
             }
         }
-        */
+
 
     }
 
