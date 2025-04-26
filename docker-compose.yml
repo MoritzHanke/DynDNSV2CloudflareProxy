@@ -10,4 +10,5 @@ services:
       - ./dockerTest/:/var/APP/:z
     environment:
       - CONFIG_PATH=/var/APP/proxy.conf
+      - LOG_PATH=/var/APP/dyndnsproxy.log
     restart: unless-stopped

@@ -2,7 +2,6 @@ package config;
 
 import java.io.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Config {
 
@@ -66,13 +65,20 @@ public class Config {
     }
 
     public static void storeOrdered(Properties properties, File file, String comments) throws IOException {
-        Properties tmp = new Properties() {
+
+        /*Properties tmp = new Properties() {
             @Override public synchronized Set<Map.Entry<Object, Object>> entrySet() {
                 return Collections.synchronizedSet(
                         super.entrySet()
                                 .stream()
                                 .sorted(Comparator.comparing(e -> e.getKey().toString()))
                                 .collect(Collectors.toCollection(LinkedHashSet::new)));
+            }
+        };*/
+        Properties tmp = new Properties() {
+            @Override
+            public synchronized Enumeration<Object> keys() {
+                return Collections.enumeration(new TreeSet<Object>(super.keySet()));
             }
         };
 
