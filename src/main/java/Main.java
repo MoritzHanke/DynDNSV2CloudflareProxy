@@ -1,5 +1,6 @@
 import config.Config;
-import server.DyndnsV2Proxy;
+import network.BasicAuth;
+import network.DyndnsV2Proxy;
 
 import java.io.File;
 import java.io.IOException;
@@ -7,7 +8,10 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.Properties;
-import java.util.logging.*;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
 public class Main {
 
@@ -27,18 +31,32 @@ public class Main {
     static String CONFIG_DEFAULT_KEY_BasicAuth_username = "BasicAuth_username";
     static String CONFIG_DEFAULT_KEY_BasicAuth_password = "BasicAuth_password";
 
+    static String CONFIG_DEFAULT_KEY_Cloudflare_ZONE_ID = "Cloudflare_ZONE_ID";
+    static String CONFIG_DEFAULT_KEY_Cloudflare_EMAIL = "Cloudflare_EMAIL";
+    static String CONFIG_DEFAULT_KEY_Cloudflare_API_KEY = "Cloudflare_API_KEY";
+
+    static String CONFIG_DEFAULT_KEY_LogTime2Comments = "LogTime2Comments";
 
     static String[] configDefaults = {
             CONFIG_DEFAULT_KEY_HTTP_active, "false",
             CONFIG_DEFAULT_KEY_HTTP_port, "80",
+
             CONFIG_DEFAULT_KEY_HTTPS_active, "false",
             CONFIG_DEFAULT_KEY_HTTPS_port, "443",
             CONFIG_DEFAULT_KEY_HTTPS_keyStoreFilePath, "",
             CONFIG_DEFAULT_KEY_HTTPS_keyStorePassphrase, "",
+
             CONFIG_DEFAULT_KEY_IPAddress, "127.0.0.1",
+
             CONFIG_DEFAULT_KEY_BasicAuth_active, "true",
             CONFIG_DEFAULT_KEY_BasicAuth_username, "",
             CONFIG_DEFAULT_KEY_BasicAuth_password, "",
+
+            CONFIG_DEFAULT_KEY_Cloudflare_ZONE_ID, "",
+            CONFIG_DEFAULT_KEY_Cloudflare_EMAIL, "",
+            CONFIG_DEFAULT_KEY_Cloudflare_API_KEY, "",
+
+            CONFIG_DEFAULT_KEY_LogTime2Comments, "true",
     };
 
     static String defConfigPath = "./proxy.conf";
@@ -47,18 +65,17 @@ public class Main {
     public static void main(String[] args) throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException {
         //init logger
         Logger logger = Logger.getLogger("Log");
-        initLogger( logger);
-
+        initLogger(logger);
         String configPath = System.getenv("CONFIG_PATH");
 
-        if(configPath == null){
+        if (configPath == null) {
             configPath = defConfigPath;
         }
 
         Properties properties;
         try {
             properties = Config.loadPropertiesFillDefaults(new File(configPath), configDefaults);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             logger.log(Level.SEVERE, e.getMessage(), e);
             System.err.println("error with Config. See StackTrace");
@@ -68,43 +85,54 @@ public class Main {
         DyndnsV2Proxy httpServer = null;
         DyndnsV2Proxy httpsServer = null;
 
+        //load Config values
         String ip = properties.getProperty(CONFIG_DEFAULT_KEY_IPAddress);
-        boolean useBasicAuth = Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_BasicAuth_active));
-        DyndnsV2Proxy.BasicAuth basicAuth = null;
+        if (ip == null) {
+            logger.log(Level.SEVERE, "missing IPAddress Field");
+            System.err.println("missing IPAddress Field");
+        }
 
-        if(useBasicAuth){
-            basicAuth = new DyndnsV2Proxy.BasicAuth(
+        boolean logTime2Comment = Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_LogTime2Comments));
+        boolean useBasicAuth = Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_BasicAuth_active));
+
+        BasicAuth basicAuth = null;
+
+        if (useBasicAuth) {
+            basicAuth = new BasicAuth(
                     properties.getProperty(CONFIG_DEFAULT_KEY_BasicAuth_username),
                     properties.getProperty(CONFIG_DEFAULT_KEY_BasicAuth_password)
             );
         }
 
-        if(ip == null){
-            logger.log(Level.SEVERE, "missing IPAddress Field");
-            System.err.println("missing IPAddress Field");
-        }
+        String cloudflareZoneID = properties.getProperty(CONFIG_DEFAULT_KEY_Cloudflare_ZONE_ID);
+        String cloudflareEmail = properties.getProperty(CONFIG_DEFAULT_KEY_Cloudflare_EMAIL);
+        String cloudflareApiKey = properties.getProperty(CONFIG_DEFAULT_KEY_Cloudflare_API_KEY);
 
-
-        if(Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_HTTP_active))){
+        if (Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_HTTP_active))) {
             try {
                 int port = Integer.parseInt(properties.getProperty(CONFIG_DEFAULT_KEY_HTTP_port));
-                httpServer = new DyndnsV2Proxy(ip, port, basicAuth);
-                System.out.printf("HTTP-Proxy started. Listening on %s:%d\n",ip, port);
-            }catch (Exception e){
+                httpServer = new DyndnsV2Proxy(
+                        ip, port, basicAuth, logTime2Comment,
+                        cloudflareZoneID, cloudflareEmail, cloudflareApiKey);
+                System.out.printf("HTTP-Proxy started. Listening on %s:%d\n", ip, port);
+            } catch (Exception e) {
                 logger.log(Level.SEVERE, e.getMessage(), e);
             }
         }
 
         //HTTPS not supported (cant test this shit... )
 
-        if(Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_HTTPS_active))){
+        if (Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_HTTPS_active))) {
             try {
                 int port = Integer.parseInt(properties.getProperty(CONFIG_DEFAULT_KEY_HTTPS_port));
                 String keyStoreFilePath = properties.getProperty(CONFIG_DEFAULT_KEY_HTTPS_keyStoreFilePath);
                 String keyStorePassPhrase = properties.getProperty(CONFIG_DEFAULT_KEY_HTTPS_keyStorePassphrase);
-                httpsServer = new DyndnsV2Proxy(ip, port, keyStoreFilePath, keyStorePassPhrase, basicAuth);
-                System.out.printf("HTTPs-Proxy started. Listening on %s:%d\n",ip, port);
-            }catch (Exception e){
+                httpsServer = new DyndnsV2Proxy(
+                        ip, port, keyStoreFilePath,
+                        keyStorePassPhrase, basicAuth, logTime2Comment,
+                        cloudflareZoneID, cloudflareEmail, cloudflareApiKey);
+                System.out.printf("HTTPs-Proxy started. Listening on %s:%d\n", ip, port);
+            } catch (Exception e) {
                 logger.log(Level.SEVERE, e.getMessage(), e);
             }
         }
@@ -112,10 +140,10 @@ public class Main {
 
     }
 
-    public static void initLogger(Logger logger){
+    public static void initLogger(Logger logger) {
         String logPath = System.getenv("LOG_PATH");
 
-        if(logPath == null){
+        if (logPath == null) {
             logPath = defLogPath;
         }
 
@@ -124,7 +152,7 @@ public class Main {
             // This block configure the logger with handler and formatter
             fh = new FileHandler(logPath);
             logger.addHandler(fh);
-            fh.setFormatter( new SimpleFormatter());
+            fh.setFormatter(new SimpleFormatter());
         } catch (SecurityException | IOException e) {
             e.printStackTrace();
         }
