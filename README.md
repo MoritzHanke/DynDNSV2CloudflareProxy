@@ -16,7 +16,7 @@ Build with maven, FAT-Jar also available.
 BasicAuth_active=true
 BasicAuth_password=your_password
 BasicAuth_username=your_username
-Cloudflare_TOKEN=your_aPI_token_with_EditZoneDNS_rights
+Cloudflare_TOKEN=your_api_token_with_EditZoneDNS_rights
 Cloudflare_ZONE_ID=your_zone_id
 HTTPS_active=true
 HTTPS_keyStoreFilePath=
@@ -45,7 +45,7 @@ Hopefully everything should work now lol
 1. Download the [FAT-Jar](#fat-jar) and the [Dockerfile + docker-compose](#docker-example-files) and save them into the same directory.
 2. run ``docker compose up`` inside this directory.
 3. Edit the config under ``./proxy_files/proxy.conf`` in the same way as above in Step 3. To change the ``HTTPS-port``, modify the `5001` inside the `docker-compose.yml`.
-4. run ``docker compose up`` and close the directory if no error occurred (or run with the ``-d`` flag)
+4. run ``docker compose up`` and close the terminal if no error occurred (or run with the ``-d`` flag)
 5. Configure your router in the same way as above in Step 5.
 
 ## Usage
