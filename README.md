@@ -103,7 +103,7 @@ If not, any login credentials may be used or the `Authorization` header field ca
 You can find your local IPv4 by running ``ipconfig``/``ifconfig``.
 - Select the protocol (`HTTP` or `HTTPS`) and port (`HTTP_port` or `HTTPS_port`)
 - ``hostname`` is a comma seperated list of different hostnames (if supported by device). <br>
-  ``@`` at the beginning of a hostname acts like a wildcard (write `@test.com` instead of ``bla.test.com,test.com,test.test.com``)
+  ``@`` at the beginning of a hostname acts like a wildcard (write `@test.com,b.com` instead of ``bla.test.com,test.com,test.test.com,b.com``)
   <br> it can be escaped with ``'X'``: ``X@...`` -> ``"@..."``, ``XX@...`` -> ``"X@..."``, ...
   <br> Ex. ``@test.com`` is a wildcard, while `XXX@.test.com` means the concrete domain `"XX@.test.com"` <br>
 !EVERYTHING IS CASE-INSENSITIVE!
