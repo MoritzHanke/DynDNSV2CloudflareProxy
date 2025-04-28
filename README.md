@@ -1,4 +1,4 @@
-# DynDNSV2CloudflareProxy (Work in progress)
+# DynDNSV2CloudflareProxy
 Accepts DynDnsV2 Updates and redirects them to Cloudflare. 
 Uses [NanoHTTP](https://github.com/NanoHttpd/nanohttpd) for hosting the server and 
 [org.json](https://github.com/douglascrockford/JSON-java) for JSON de/-serialization.
