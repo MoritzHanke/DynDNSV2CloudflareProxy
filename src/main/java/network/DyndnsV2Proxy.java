@@ -5,6 +5,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONWriter;
+import sun.security.tools.keytool.CertAndKeyGen;
+import sun.security.x509.X500Name;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManagerFactory;
@@ -13,11 +15,9 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
+import java.security.*;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Level;
@@ -25,36 +25,41 @@ import java.util.logging.Logger;
 
 public class DyndnsV2Proxy extends NanoHTTPD {
 
-    static Response responseAuthError = newFixedLengthResponse(Response.Status.OK, "text/plain", "badauth");
-    static Response responseNoHosts = newFixedLengthResponse(Response.Status.OK, "text/plain", "notfqdn");
-    static Response responseGoodLocalHostAndMalformedRequest = newFixedLengthResponse(Response.Status.OK, "text/plain", "good 127.0.0.1");
-    static Response response911 = newFixedLengthResponse(Response.Status.OK, "text/plain", "911");
+    static Response responseAuthError(){ return newFixedLengthResponse(Response.Status.OK, "text/plain", "badauth");}
+    static Response responseNoHosts(){ return newFixedLengthResponse(Response.Status.OK, "text/plain", "notfqdn");}
+    static Response responseGoodLocalHostAndMalformedRequest(){ return newFixedLengthResponse(Response.Status.OK, "text/plain", "good 127.0.0.1");}
+    static Response response911(){ return newFixedLengthResponse(Response.Status.OK, "text/plain", "911");}
 
     Logger logger = Logger.getLogger("Log");
     BasicAuth basicAuth;
     String cloudflareZoneID, cloudflareEmail,cloudflareApiKey;
     boolean logTime2Comments;
 
-    public DyndnsV2Proxy(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException {
-        super(ip, port);
-        this.basicAuth = basicAuth;
-        this.cloudflareZoneID = cloudflareZoneID;
-        this.cloudflareEmail = cloudflareEmail;
-        this.cloudflareApiKey = cloudflareApiKey;
-        this.logTime2Comments = logTime2Comments;
-        start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+    private DyndnsV2Proxy(String hostname, int port) {
+        super(hostname, port);
+    }
+
+    public static DyndnsV2Proxy genHTTPDyndnsV2Proxy(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException {
+        DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
+        proxy.basicAuth = basicAuth;
+        proxy.cloudflareZoneID = cloudflareZoneID;
+        proxy.cloudflareEmail = cloudflareEmail;
+        proxy.cloudflareApiKey = cloudflareApiKey;
+        proxy.logTime2Comments = logTime2Comments;
+        proxy.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        return proxy;
     }
 
     /**
      * create HTTPS server
      * */
-    public DyndnsV2Proxy(String ip, int port, String path2KeyStore, String passphrase, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
-        super(ip, port);
-        this.basicAuth = basicAuth;
-        this.cloudflareZoneID = cloudflareZoneID;
-        this.cloudflareEmail = cloudflareEmail;
-        this.cloudflareApiKey = cloudflareApiKey;
-        this.logTime2Comments = logTime2Comments;
+    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy(String ip, int port, String path2KeyStore, String passphrase, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+        DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
+        proxy.basicAuth = basicAuth;
+        proxy.cloudflareZoneID = cloudflareZoneID;
+        proxy.cloudflareEmail = cloudflareEmail;
+        proxy.cloudflareApiKey = cloudflareApiKey;
+        proxy.logTime2Comments = logTime2Comments;
 
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         InputStream in = Files.newInputStream(Paths.get(path2KeyStore));
@@ -66,10 +71,44 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
         KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         keyManagerFactory.init(keyStore, passphrase.toCharArray());
-        makeSecure(makeSSLSocketFactory(keyStore, keyManagerFactory), null);
+        proxy.makeSecure(makeSSLSocketFactory(keyStore, keyManagerFactory), null);
 
-        start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        proxy.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        return proxy;
+    }
 
+    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy_GenKeyStore(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, InvalidKeyException, SignatureException {
+        DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
+        proxy.basicAuth = basicAuth;
+        proxy.cloudflareZoneID = cloudflareZoneID;
+        proxy.cloudflareEmail = cloudflareEmail;
+        proxy.cloudflareApiKey = cloudflareApiKey;
+        proxy.logTime2Comments = logTime2Comments;
+
+        KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+        ks.load(null, null); //keystore will only exist at runtime in java memory. no need for password
+
+        CertAndKeyGen gen = new CertAndKeyGen("RSA", "SHA1WithRSA", null);
+        gen.generate(2048);
+        PrivateKey privKey = gen.getPrivateKey();
+
+        X509Certificate[] chain=new X509Certificate[1];
+        chain[0]=gen.getSelfCertificate(new X500Name("CN=ROOT"), (long)1000*365*24*3600);
+        //valid for 1000 years... bit overkill, but idk what happens if you dont restart the application in 3 years... maybe a bit unsafe, but who cares
+
+        String password = UUID.randomUUID().toString();
+        ks.setKeyEntry("temp", privKey, password.toCharArray(), chain);
+
+        if(ks.size() == 0){
+            throw new RuntimeException("could not load keyStore");
+        }
+
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        keyManagerFactory.init(ks, password.toCharArray());
+        proxy.makeSecure(makeSSLSocketFactory(ks, keyManagerFactory), null);
+
+        proxy.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        return proxy;
     }
 
 
@@ -93,24 +132,24 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
             if (auth == null){
                     logger.warning("Request without authorization, even though enabled");
-                    return responseAuthError;
+                    return responseAuthError();
             }
 
             String[] authSplit = auth.split(" ");
 
-            if(authSplit.length > 0 && !authSplit[0].equals("Basic")){
+            if(authSplit.length > 0 && !authSplit[0].equalsIgnoreCase("Basic")){
                 logger.warning("Request without non-Basic authorization format");
-                return responseAuthError;
+                return responseAuthError();
             }
 
             if(authSplit.length != 2){
                 logger.warning("Request without bad authorization format");
-                return responseAuthError;
+                return responseAuthError();
             }
 
             if(!basicAuth.validate(authSplit[1].getBytes(StandardCharsets.UTF_8))){
                 logger.warning("authorization failed. Wrong username or password");
-                return responseAuthError;
+                return responseAuthError();
             }
         }
 
@@ -135,7 +174,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
         if(ip == null){
             logger.warning("cant access header back-up-header http-client-ip or it isnt correctly formatted");
-            return responseGoodLocalHostAndMalformedRequest;
+            return responseGoodLocalHostAndMalformedRequest();
         }
 
 
@@ -143,21 +182,21 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         String hostnameString = session.getParms().get("hostname");
 
         if(hostnameString == null){
-            return responseNoHosts;
+            return responseNoHosts();
         }
 
         String[] hostNameSplit = hostnameString.split(",");
         List<String> hostnames = new ArrayList<>(hostNameSplit.length);
 
-        //preserves order
+        //preserves order (not guaranteed for streams)
         for (int i = 0; i < hostNameSplit.length; i++) {
             hostnames.add(hostNameSplit[i].trim());
         }
 
-        // others parameters will be ignored (wildcard, mx, backmx, system, url and offline (offline is the only one with use)
+        // others parameters will be ignored (wildcard, mx, backmx, system, url and offline (offline is the only one with a use case)
 
         if(hostnames.size() == 0){
-            return responseNoHosts;
+            return responseNoHosts();
         }
 
         //----------------------------------
@@ -172,13 +211,13 @@ public class DyndnsV2Proxy extends NanoHTTPD {
             type = CloudflareRecord.RecordType.AAAA;
         }else{
             logger.warning("Unknown Type of ip Address: " + ip);
-            return responseGoodLocalHostAndMalformedRequest;
+            return responseGoodLocalHostAndMalformedRequest();
         }
 
         List<CloudflareRecord> records = getRecords(type, hostnames, cloudflareZoneID, cloudflareEmail, cloudflareApiKey);
 
         if(records == null){
-            return response911;
+            return response911();
         }
 
         //-------------------------------------
@@ -189,15 +228,15 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         List<CloudflareRecord> updatedRecords = updateRecords(ip, records, logTime2Comments, cloudflareZoneID, cloudflareEmail, cloudflareApiKey);
 
         if (updatedRecords == null){
-            return response911;
+            return response911();
         }
 
         //--------------------------------
         //------Check Update Success------
         //--------------------------------
 
-        boolean[] hostnameFoundSuccess = new boolean[hostnames.size()];
-        boolean[] hostnameUpdateSuccess = new boolean[hostnames.size()];
+        boolean[] hostnameFoundSuccess = new boolean[hostnames.size()]; //is included in records
+        boolean[] hostnameUpdateSuccess = new boolean[hostnames.size()]; //is included in updatedRecords
 
         //check for each hostname, if at least one matching updated Record was found
 
@@ -227,23 +266,15 @@ public class DyndnsV2Proxy extends NanoHTTPD {
                         break;
                     }
                 }
-            } else if (hostname.matches("X+@.*")) { //one or more X at the beginning, followed by @ and any sequence of characters
-                //escaped hostname
-                String h = hostname.substring(1);
-                for (CloudflareRecord updatedRecord : updatedRecords){
-                    if(updatedRecord.name.equalsIgnoreCase(h)){
-                        hostnameUpdateSuccess[i] = true;
-                        break;
-                    }
+            } else {
+
+                //check if escaped hostname or regular hostname
+                if (hostname.matches("X+@.*")){
+                    //one or more X at the beginning, followed by @ and any sequence of characters
+                    hostname = hostname.substring(1);
                 }
-                for (CloudflareRecord r : records){
-                    if(r.name.equalsIgnoreCase(h)){
-                        hostnameFoundSuccess[i] = true;
-                        break;
-                    }
-                }
-            }else{
-                //normal hostname
+
+                //escaped hostname or regular hostname
                 for (CloudflareRecord updatedRecord : updatedRecords){
                     if(updatedRecord.name.equalsIgnoreCase(hostname)){
                         hostnameUpdateSuccess[i] = true;

@@ -1,14 +1,14 @@
 services:
   dyndns_proxy_im:
-    container_name: dyndns_proxy_co
+    container_name: dyndns_proxy
     build: .
     image: m0litz/dyndns_proxy_im
     ports:
-      - "5000:5000"
-      - "5001:5001"
+#      - "5000:80"
+      - "5001:443"
     volumes:
-      - ./dockerTest/:/var/APP/:z
+      - ./proxy_files/:/var/APP/:z
     environment:
       - CONFIG_PATH=/var/APP/proxy.conf
       - LOG_PATH=/var/APP/dyndnsproxy.log
-    restart: unless-stopped
+    restart: on-failure
