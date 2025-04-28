@@ -32,19 +32,18 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
     Logger logger = Logger.getLogger("Log");
     BasicAuth basicAuth;
-    String cloudflareZoneID, cloudflareEmail,cloudflareApiKey;
+    String cloudflareZoneID, cloudflareToken;
     boolean logTime2Comments;
 
     private DyndnsV2Proxy(String hostname, int port) {
         super(hostname, port);
     }
 
-    public static DyndnsV2Proxy genHTTPDyndnsV2Proxy(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException {
+    public static DyndnsV2Proxy genHTTPDyndnsV2Proxy(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken) throws IOException {
         DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
         proxy.basicAuth = basicAuth;
         proxy.cloudflareZoneID = cloudflareZoneID;
-        proxy.cloudflareEmail = cloudflareEmail;
-        proxy.cloudflareApiKey = cloudflareApiKey;
+        proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
         proxy.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
         return proxy;
@@ -53,12 +52,11 @@ public class DyndnsV2Proxy extends NanoHTTPD {
     /**
      * create HTTPS server
      * */
-    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy(String ip, int port, String path2KeyStore, String passphrase, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy(String ip, int port, String path2KeyStore, String passphrase, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
         DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
         proxy.basicAuth = basicAuth;
         proxy.cloudflareZoneID = cloudflareZoneID;
-        proxy.cloudflareEmail = cloudflareEmail;
-        proxy.cloudflareApiKey = cloudflareApiKey;
+        proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
 
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -77,12 +75,11 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         return proxy;
     }
 
-    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy_GenKeyStore(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, InvalidKeyException, SignatureException {
+    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy_GenKeyStore(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, InvalidKeyException, SignatureException {
         DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
         proxy.basicAuth = basicAuth;
         proxy.cloudflareZoneID = cloudflareZoneID;
-        proxy.cloudflareEmail = cloudflareEmail;
-        proxy.cloudflareApiKey = cloudflareApiKey;
+        proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
 
         KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -214,7 +211,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
             return responseGoodLocalHostAndMalformedRequest();
         }
 
-        List<CloudflareRecord> records = getRecords(type, hostnames, cloudflareZoneID, cloudflareEmail, cloudflareApiKey);
+        List<CloudflareRecord> records = getRecords(type, hostnames, cloudflareZoneID, cloudflareToken);
 
         if(records == null){
             return response911();
@@ -225,7 +222,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         //-------------------------------------
 
         //updates all or none
-        List<CloudflareRecord> updatedRecords = updateRecords(ip, records, logTime2Comments, cloudflareZoneID, cloudflareEmail, cloudflareApiKey);
+        List<CloudflareRecord> updatedRecords = updateRecords(ip, records, logTime2Comments, cloudflareZoneID, cloudflareToken);
 
         if (updatedRecords == null){
             return response911();
@@ -316,7 +313,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         return newFixedLengthResponse(response.toString());
     }
 
-    public List<CloudflareRecord> updateRecords(InetAddress ipAddress, List<CloudflareRecord> toUpdate, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey){
+    public List<CloudflareRecord> updateRecords(InetAddress ipAddress, List<CloudflareRecord> toUpdate, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken){
         List<CloudflareRecord> updatedRecords = new ArrayList<>(toUpdate.size());
         try {
             String cloudFlareApiURL = String.format("https://api.cloudflare.com/client/v4/zones/%s/dns_records/batch", cloudflareZoneID);
@@ -324,8 +321,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
             httpsConnection = (HttpsURLConnection) new URL(cloudFlareApiURL).openConnection();
             httpsConnection.setRequestMethod("POST");
             httpsConnection.setRequestProperty("Content-Type", "application/json");
-            httpsConnection.setRequestProperty("X-Auth-Email", cloudflareEmail);
-            httpsConnection.setRequestProperty("X-Auth-Key", cloudflareApiKey);
+            httpsConnection.setRequestProperty("Authorization", "Bearer " + cloudflareToken);
 
             //body
             JSONArray toModifyJSON = new JSONArray();
@@ -396,7 +392,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         }
     }
 
-    public List<CloudflareRecord> getRecords(CloudflareRecord.RecordType type, List<String> hostnames, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) {
+    public List<CloudflareRecord> getRecords(CloudflareRecord.RecordType type, List<String> hostnames, String cloudflareZoneID, String cloudflareToken) {
         //request Data
         //build hostname query
         URLQueryBuilder queryBuilder = new URLQueryBuilder();
@@ -429,8 +425,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
             HttpsURLConnection httpsConnection;
             httpsConnection = (HttpsURLConnection) new URL(cloudFlareApiURL).openConnection();
             httpsConnection.setRequestMethod("GET");
-            httpsConnection.setRequestProperty("X-Auth-Email", cloudflareEmail);
-            httpsConnection.setRequestProperty("X-Auth-Key", cloudflareApiKey);
+            httpsConnection.setRequestProperty("Authorization", "Bearer " + cloudflareToken);
 
             int responseCode = httpsConnection.getResponseCode();
 
