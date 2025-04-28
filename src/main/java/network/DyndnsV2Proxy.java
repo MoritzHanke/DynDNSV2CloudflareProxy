@@ -4,13 +4,11 @@ import fi.iki.elonen.NanoHTTPD;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONWriter;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManagerFactory;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,6 +18,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -186,14 +185,184 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         //------Update Cloudflare Records------
         //-------------------------------------
 
+        //updates all or none
+        List<CloudflareRecord> updatedRecords = updateRecords(ip, records, logTime2Comments, cloudflareZoneID, cloudflareEmail, cloudflareApiKey);
 
+        if (updatedRecords == null){
+            return response911;
+        }
 
-        //TODO
+        //--------------------------------
+        //------Check Update Success------
+        //--------------------------------
 
-        //TODO LogTime2Comments optional nicht vergessen
+        boolean[] hostnameFoundSuccess = new boolean[hostnames.size()];
+        boolean[] hostnameUpdateSuccess = new boolean[hostnames.size()];
 
+        //check for each hostname, if at least one matching updated Record was found
 
-        return newFixedLengthResponse("test");
+        for(int i = 0; i < hostnames.size(); i++){
+            String hostname = hostnames.get(i);
+
+            //wildcard shit. see getRecords()
+            //"@abc" is a wildcard for ....abc (@ is the only thing my router accepts)
+            //weird escape thingies:
+            //      use n times the character 'X' followed by '@' for escaping and n-1 times the character 'X':
+            //          "@bla"          ->  wildcard on .... ending with "bla"
+            //          "XXX@bla"       ->  concrete address "XX@bla"
+            //          "XXtest@bla"    ->  concrete address "XXtest@bla"
+
+            if (hostname.startsWith("@")){
+                //wildcard
+                String h = hostname.substring(1);
+                for (CloudflareRecord updatedRecord : updatedRecords){
+                    if(updatedRecord.name.toLowerCase().endsWith(h.toLowerCase())){
+                        hostnameUpdateSuccess[i] = true;
+                        break;
+                    }
+                }
+                for (CloudflareRecord r : records){
+                    if(r.name.toLowerCase().endsWith(h.toLowerCase())){
+                        hostnameFoundSuccess[i] = true;
+                        break;
+                    }
+                }
+            } else if (hostname.matches("X+@.*")) { //one or more X at the beginning, followed by @ and any sequence of characters
+                //escaped hostname
+                String h = hostname.substring(1);
+                for (CloudflareRecord updatedRecord : updatedRecords){
+                    if(updatedRecord.name.equalsIgnoreCase(h)){
+                        hostnameUpdateSuccess[i] = true;
+                        break;
+                    }
+                }
+                for (CloudflareRecord r : records){
+                    if(r.name.equalsIgnoreCase(h)){
+                        hostnameFoundSuccess[i] = true;
+                        break;
+                    }
+                }
+            }else{
+                //normal hostname
+                for (CloudflareRecord updatedRecord : updatedRecords){
+                    if(updatedRecord.name.equalsIgnoreCase(hostname)){
+                        hostnameUpdateSuccess[i] = true;
+                        break;
+                    }
+                }
+                for (CloudflareRecord r : records){
+                    if(r.name.equalsIgnoreCase(hostname)){
+                        hostnameFoundSuccess[i] = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        //--------------------------
+        //------Build Response------
+        //--------------------------
+
+        StringBuilder response = new StringBuilder();
+        for (int i = 0; i < hostnames.size(); i++) {
+            if(hostnameUpdateSuccess[i]){
+                response.append("good ");
+                response.append(hostnames.get(i));
+                response.append("\n");
+            }else {
+                if(hostnameFoundSuccess[i]){
+                    response.append("nochg ");
+                    response.append(hostnames.get(i));
+                    response.append("\n");
+                }else{
+                    response.append("nohost ");
+                    response.append(hostnames.get(i));
+                    response.append("\n");
+                }
+            }
+        }
+
+        return newFixedLengthResponse(response.toString());
+    }
+
+    public List<CloudflareRecord> updateRecords(InetAddress ipAddress, List<CloudflareRecord> toUpdate, boolean logTime2Comments, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey){
+        List<CloudflareRecord> updatedRecords = new ArrayList<>(toUpdate.size());
+        try {
+            String cloudFlareApiURL = String.format("https://api.cloudflare.com/client/v4/zones/%s/dns_records/batch", cloudflareZoneID);
+            HttpsURLConnection httpsConnection;
+            httpsConnection = (HttpsURLConnection) new URL(cloudFlareApiURL).openConnection();
+            httpsConnection.setRequestMethod("POST");
+            httpsConnection.setRequestProperty("Content-Type", "application/json");
+            httpsConnection.setRequestProperty("X-Auth-Email", cloudflareEmail);
+            httpsConnection.setRequestProperty("X-Auth-Key", cloudflareApiKey);
+
+            //body
+            JSONArray toModifyJSON = new JSONArray();
+            JSONObject updateJSON = new JSONObject();
+            //check indentfactro
+            boolean sendsmth = false;
+
+            for (CloudflareRecord record : toUpdate) {
+                JSONObject obj = new JSONObject();
+                obj.put("id", record.id);
+
+                if (record.content.equalsIgnoreCase(ipAddress.getHostAddress())){
+                    continue; //dont update, not changed (abusive behaviour)
+                }else{
+                    obj.put("content", ipAddress.getHostAddress());
+                    if(logTime2Comments){
+                        obj.put("comment", "Updated on: " + LocalDateTime.now().toString());
+                    }
+                }
+                sendsmth = true;
+                toModifyJSON.put(obj);
+                obj.toString();
+            }
+            updateJSON.put("patches", toModifyJSON);
+
+            if(!sendsmth){
+                return updatedRecords;
+            }
+
+            httpsConnection.setDoOutput(true);
+            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(httpsConnection.getOutputStream()));
+            writer.write(JSONWriter.valueToString(updateJSON));
+            writer.close();
+
+            int responseCode = httpsConnection.getResponseCode();
+
+            if(responseCode != 200){
+                logger.severe("error code from Cloudflare: " + responseCode + ", " + DyndnsV2Proxy.getRequestStreamString(httpsConnection.getErrorStream()));
+                return null;
+            }
+            String responseString = DyndnsV2Proxy.getRequestStreamString(httpsConnection.getInputStream());
+
+            //parse JSON to CloudflareRecord
+            try {
+                JSONObject responseJSON = new JSONObject(responseString);
+
+                if(!responseJSON.getBoolean("success")) {
+                    logger.severe("success:false? " + ", " + responseString);
+                    return null;
+                }
+                JSONObject results = responseJSON.getJSONObject("result");
+                JSONArray patches = results.getJSONArray("patches");
+
+                for (int i = 0; i < patches.length(); i++) {
+                    CloudflareRecord r = CloudflareRecord.parseFromJSON((JSONObject) patches.get(i));
+                    updatedRecords.add(r);
+                }
+
+                return updatedRecords;
+
+            }catch (JSONException e){
+                logger.log(Level.SEVERE, e.getMessage(), e);
+                return null;
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, e.getMessage(), e);
+            return null; //return null to indicate critical error (Response 911)
+        }
     }
 
     public List<CloudflareRecord> getRecords(CloudflareRecord.RecordType type, List<String> hostnames, String cloudflareZoneID, String cloudflareEmail, String cloudflareApiKey) {
@@ -229,8 +398,8 @@ public class DyndnsV2Proxy extends NanoHTTPD {
             HttpsURLConnection httpsConnection;
             httpsConnection = (HttpsURLConnection) new URL(cloudFlareApiURL).openConnection();
             httpsConnection.setRequestMethod("GET");
-            httpsConnection.setRequestProperty("X-Auth-Email", String.format("%s", cloudflareEmail));
-            httpsConnection.setRequestProperty("X-Auth-Key", String.format("%s", cloudflareApiKey));
+            httpsConnection.setRequestProperty("X-Auth-Email", cloudflareEmail);
+            httpsConnection.setRequestProperty("X-Auth-Key", cloudflareApiKey);
 
             int responseCode = httpsConnection.getResponseCode();
 

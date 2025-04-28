@@ -47,4 +47,8 @@ public class CloudflareRecord {
             return null;
         }
     }
+
+    public CloudflareRecord clone(){
+        return new CloudflareRecord(id, name, type, content);
+    }
 }

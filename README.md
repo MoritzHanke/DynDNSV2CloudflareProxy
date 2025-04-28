@@ -48,7 +48,7 @@ Where
 
 Both ``HTTP`` and ``HTTPS`` may be used at the same time if needed.
 
-TODO: configure Router, Wildcard + weird escape explanation
+TODO: configure Router, Wildcard + weird escape explanation. everything is case insensitive
 
 ### Docker
 Docker-Integration should be relative straight forward. <br>
@@ -60,7 +60,7 @@ TODO: update before release to a working example
 ## Supported Features
 Supports Raw HTTP Requests as specified in https://help.dyn.com/remote-access-api/perform-update/. <br>
 Returns Return-Codes as specified in https://help.dyn.com/remote-access-api/return-codes/.
-### Added/Missing Features
+### Added/Missing/Changed Features
 (will probably not be implemented, unless I need them at some point)
 - ``offline`` Update Parameter is ignored
 - URL-Authentication is not supported
@@ -69,6 +69,7 @@ Returns Return-Codes as specified in https://help.dyn.com/remote-access-api/retu
 - Does not validate Host (Header)
 - no limit on hostnames (although cloudflare can only load 5000000 in one page, so 5000000 it is)
 - wildcard for hostnames (see [Usage](#usage))
+- if the hostname specified is not a fully-qualified domain name, ``nohost`` will be returned instead of ``notfqdn``
 
 ## Releases
 None so far lol
