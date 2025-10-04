@@ -1,8 +1,12 @@
+
 # DynDNSV2CloudflareProxy
 Accepts DynDnsV2 Updates and redirects them to Cloudflare. 
 Uses [NanoHTTP](https://github.com/NanoHttpd/nanohttpd) for hosting the server and 
 [org.json](https://github.com/douglascrockford/JSON-java) for JSON de/-serialization.
 Build with maven, FAT-Jar also available.
+
+### Disclaimer
+Due to the dropped support of ``sun.security.tools.keytool`` in ``Java 16``, the HTTPs-server no longer works in these versions. The HTTP-server will still function (error message is still displayed in stdout).
 
 ## Quick Start
 1. Download the [FAT-Jar](#fat-jar) 
@@ -25,6 +29,7 @@ HTTPS_keyStore_genSelfSigned=true
 HTTPS_port=443
 HTTP_active=false
 HTTP_port=80
+Hostname_Filter=
 IPAddress=0.0.0.0
 LogTime2Comments=true
 ````
@@ -49,7 +54,7 @@ Hopefully everything should work now lol
 5. Configure your router in the same way as above in Step 5.
 
 ## Usage
-Compile the program or download the [FAT-JAR](#fat-jar)/ [JAR with dependencies and POM](#jar-with-dependencies)from [Releases](#releases).
+Compile the program or download the [FAT-JAR](#fat-jar)/ [JAR with dependencies and POM](#jar-with-dependencies) from [Releases](#releases).
 
 Define a config and log file with the `` CONFIG_PATH`` und ``LOG_PATH`` environment variables 
 or let them generate at ``./proxy.conf`` and ``./dyndnsproxy.log`` by running the program once.
@@ -67,6 +72,7 @@ HTTPS_keyStore_genSelfSigned=true
 HTTPS_port=443
 HTTP_active=false
 HTTP_port=80
+Hostname_Filter=
 IPAddress=127.0.0.1
 LogTime2Comments=true
 ````
@@ -88,9 +94,9 @@ Where
 | ``HTTPS_port``                   | (optional, if ``HTTPS_active=false`` ) Port on which the HTTPS server will listen                                                                                                                                           |
 | ``HTTP_active``                  | ``true``: run HTTP server on port ``HTTP_port`` (be careful with Basic_Auth credentials)                                                                                                                                    |
 | ``HTTP_port``                    | (optional, if ``HTTP_active=false`` ) Port on which the HTTP server will listen                                                                                                                                             |
+| ``Hostname_Filter=``             | Comma seperated list of hostnames that should never be updated (doesn't matter if per wirecard or else). For Example ``static.test.com,local.test.com,bla.test.com``    (case sensitive!!!)                                 |
 | ``IPAddress``                    | IP-Address the HTTP or HTTPS server is listening on.<br/>Use ``0.0.0.0`` (or the ip of your device inside the network the request will come from) if the request will not come from your device itself (but e.g. a router). |
 | ``LogTime2Comments``             | ``true``: sets the current time as a comment when updating records. Although a ``last-changed`` attribute can be obtained anyway somehow                                                                                    |
-
 Both ``HTTP`` and ``HTTPS`` may be used at the same time if needed.
 To use this application with Docker see [here](#docker)
 
@@ -120,12 +126,13 @@ Returns Return-Codes as specified in https://help.dyn.com/remote-access-api/retu
 - Does not validate Host (Header)
 - no limit on hostnames (although cloudflare can only load 5000000 in one page, so 5000000 it is)
 - wildcard for hostnames (see [Usage](#usage))
+- filter for hostnames that shouldn't be updated
 - if the hostname specified is not a fully-qualified domain name, ``nohost`` will be returned instead of ``notfqdn``
 maybe missing some, idk know anymore...
 
 
 ## Releases
-### Ver1.0 
+### Ver0.1.1 
 Not extensively tested yet but core features should work. If any problems are encountered, please open an Issue with information to replicate it, log entries, config values, ...
 #### Fat JAR
 Downloadlink: [DyndnsV2_Cloudflare_Proxy.jar](DyndnsV2_Cloudflare_Proxy.jar)

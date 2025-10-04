@@ -35,16 +35,19 @@ public class DyndnsV2Proxy extends NanoHTTPD {
     String cloudflareZoneID, cloudflareToken;
     boolean logTime2Comments;
 
+    List<String> hostname_filter;
+
     private DyndnsV2Proxy(String hostname, int port) {
         super(hostname, port);
     }
 
-    public static DyndnsV2Proxy genHTTPDyndnsV2Proxy(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken) throws IOException {
+    public static DyndnsV2Proxy genHTTPDyndnsV2Proxy(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken, List<String> hostname_filter) throws IOException {
         DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
         proxy.basicAuth = basicAuth;
         proxy.cloudflareZoneID = cloudflareZoneID;
         proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
+        proxy.hostname_filter = hostname_filter;
         proxy.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
         return proxy;
     }
@@ -52,12 +55,13 @@ public class DyndnsV2Proxy extends NanoHTTPD {
     /**
      * create HTTPS server
      * */
-    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy(String ip, int port, String path2KeyStore, String passphrase, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy(String ip, int port, String path2KeyStore, String passphrase, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken, List<String> hostname_filter) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
         DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
         proxy.basicAuth = basicAuth;
         proxy.cloudflareZoneID = cloudflareZoneID;
         proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
+        proxy.hostname_filter = hostname_filter;
 
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         InputStream in = Files.newInputStream(Paths.get(path2KeyStore));
@@ -75,12 +79,13 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         return proxy;
     }
 
-    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy_GenKeyStore(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, InvalidKeyException, SignatureException {
+    public static DyndnsV2Proxy genHTTPSDyndnsV2Proxy_GenKeyStore(String ip, int port, BasicAuth basicAuth, boolean logTime2Comments, String cloudflareZoneID, String cloudflareToken, List<String> hostname_filter) throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException, InvalidKeyException, SignatureException {
         DyndnsV2Proxy proxy = new DyndnsV2Proxy(ip, port);
         proxy.basicAuth = basicAuth;
         proxy.cloudflareZoneID = cloudflareZoneID;
         proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
+        proxy.hostname_filter = hostname_filter;
 
         KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
         ks.load(null, null); //keystore will only exist at runtime in java memory. no need for password
@@ -449,7 +454,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
                 for (int i = 0; i < results.length(); i++) {
                        CloudflareRecord r = CloudflareRecord.parseFromJSON((JSONObject) results.get(i));
-                       if(r != null && r.type == type){
+                       if(r != null && r.type == type && !hostname_filter.contains(r.name)){
                            records.add(r);
                        }
                 }

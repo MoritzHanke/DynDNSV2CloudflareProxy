@@ -4,6 +4,8 @@ import network.DyndnsV2Proxy;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
@@ -34,6 +36,8 @@ public class Main {
 
     static String CONFIG_DEFAULT_KEY_LogTime2Comments = "LogTime2Comments";
 
+    static String CONFIG_DEFAULT_KEY_Hostname_Filter = "Hostname_Filter";
+
     static String[] configDefaults = {
             CONFIG_DEFAULT_KEY_HTTP_active, "false",
             CONFIG_DEFAULT_KEY_HTTP_port, "80",
@@ -54,6 +58,8 @@ public class Main {
             CONFIG_DEFAULT_KEY_Cloudflare_TOKEN, "",
 
             CONFIG_DEFAULT_KEY_LogTime2Comments, "true",
+
+            CONFIG_DEFAULT_KEY_Hostname_Filter, "",
     };
 
     static String defConfigPath = "./proxy.conf";
@@ -104,19 +110,19 @@ public class Main {
         String cloudflareZoneID = properties.getProperty(CONFIG_DEFAULT_KEY_Cloudflare_ZONE_ID);
         String cloudflareToken = properties.getProperty(CONFIG_DEFAULT_KEY_Cloudflare_TOKEN);
 
+        List<String> hostname_filter = Arrays.asList(properties.getProperty(CONFIG_DEFAULT_KEY_Hostname_Filter).split(","));
+
         if (Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_HTTP_active))) {
             try {
                 int port = Integer.parseInt(properties.getProperty(CONFIG_DEFAULT_KEY_HTTP_port));
                 httpServer = DyndnsV2Proxy.genHTTPDyndnsV2Proxy(
                         ip, port, basicAuth, logTime2Comment,
-                        cloudflareZoneID, cloudflareToken);
+                        cloudflareZoneID, cloudflareToken, hostname_filter);
                 System.out.printf("HTTP-Proxy started. Listening on %s:%d\n", ip, port);
             } catch (Exception e) {
                 logger.log(Level.SEVERE, e.getMessage(), e);
             }
         }
-
-        //HTTPS not supported (cant test this shit... )
 
         if (Boolean.parseBoolean(properties.getProperty(CONFIG_DEFAULT_KEY_HTTPS_active))) {
             try {
@@ -127,7 +133,7 @@ public class Main {
                 if(genKeyStoreAtRuntime){
                     httpsServer = DyndnsV2Proxy.genHTTPSDyndnsV2Proxy_GenKeyStore(
                             ip, port, basicAuth, logTime2Comment,
-                            cloudflareZoneID, cloudflareToken);
+                            cloudflareZoneID, cloudflareToken, hostname_filter);
                     System.out.printf("HTTPs-Proxy started. Listening on %s:%d\n", ip, port);
                 }else {
                     String keyStoreFilePath = properties.getProperty(CONFIG_DEFAULT_KEY_HTTPS_keyStoreFilePath);
@@ -135,7 +141,7 @@ public class Main {
                     httpsServer = DyndnsV2Proxy.genHTTPSDyndnsV2Proxy(
                             ip, port, keyStoreFilePath,
                             keyStorePassPhrase, basicAuth, logTime2Comment,
-                            cloudflareZoneID, cloudflareToken);
+                            cloudflareZoneID, cloudflareToken, hostname_filter);
                     System.out.printf("HTTPs-Proxy started. Listening on %s:%d\n", ip, port);
                 }
             } catch (Exception e) {
