@@ -1,4 +1,4 @@
-FROM openjdk:8-alpine
+FROM amazoncorretto:8-alpine
 WORKDIR /usr/APP/
 
 COPY DyndnsV2_Cloudflare_Proxy.jar DyndnsV2_Cloudflare_Proxy.jar
