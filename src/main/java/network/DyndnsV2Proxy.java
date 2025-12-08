@@ -1,6 +1,7 @@
 package network;
 
 import fi.iki.elonen.NanoHTTPD;
+import javafx.util.Pair;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class DyndnsV2Proxy extends NanoHTTPD {
 
@@ -35,7 +37,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
     String cloudflareZoneID, cloudflareToken;
     boolean logTime2Comments;
 
-    List<String> hostname_filter;
+    List<Pair<Boolean, String>> evaluated_hostname_filter;
 
     private DyndnsV2Proxy(String hostname, int port) {
         super(hostname, port);
@@ -47,7 +49,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         proxy.cloudflareZoneID = cloudflareZoneID;
         proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
-        proxy.hostname_filter = hostname_filter;
+        proxy.evaluated_hostname_filter = hostname_filter.stream().map(DyndnsV2Proxy::evaluateHostname).collect(Collectors.toList());
         proxy.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
         return proxy;
     }
@@ -61,7 +63,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         proxy.cloudflareZoneID = cloudflareZoneID;
         proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
-        proxy.hostname_filter = hostname_filter;
+        proxy.evaluated_hostname_filter = hostname_filter.stream().map(DyndnsV2Proxy::evaluateHostname).collect(Collectors.toList());
 
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         InputStream in = Files.newInputStream(Paths.get(path2KeyStore));
@@ -85,7 +87,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         proxy.cloudflareZoneID = cloudflareZoneID;
         proxy.cloudflareToken = cloudflareToken;
         proxy.logTime2Comments = logTime2Comments;
-        proxy.hostname_filter = hostname_filter;
+        proxy.evaluated_hostname_filter = hostname_filter.stream().map(DyndnsV2Proxy::evaluateHostname).collect(Collectors.toList());
 
         KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
         ks.load(null, null); //keystore will only exist at runtime in java memory. no need for password
@@ -244,6 +246,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
         for(int i = 0; i < hostnames.size(); i++){
             String hostname = hostnames.get(i);
+            Pair<Boolean, String> evaluated_hostname = evaluateHostname(hostname); //(is_wildcard, hostname-truncated)
 
             //wildcard shit. see getRecords()
             //"@abc" is a wildcard for ....abc (@ is the only thing my router accepts)
@@ -253,38 +256,31 @@ public class DyndnsV2Proxy extends NanoHTTPD {
             //          "XXX@bla"       ->  concrete address "XX@bla"
             //          "XXtest@bla"    ->  concrete address "XXtest@bla"
 
-            if (hostname.startsWith("@")){
+            if (evaluated_hostname.getKey()){ //wildcard
                 //wildcard
-                String h = hostname.substring(1);
                 for (CloudflareRecord updatedRecord : updatedRecords){
-                    if(updatedRecord.name.toLowerCase().endsWith(h.toLowerCase())){
+                    if(updatedRecord.name.toLowerCase().endsWith(evaluated_hostname.getValue().toLowerCase())){
                         hostnameUpdateSuccess[i] = true;
                         break;
                     }
                 }
                 for (CloudflareRecord r : records){
-                    if(r.name.toLowerCase().endsWith(h.toLowerCase())){
+                    if(r.name.toLowerCase().endsWith(evaluated_hostname.getValue().toLowerCase())){
                         hostnameFoundSuccess[i] = true;
                         break;
                     }
                 }
             } else {
 
-                //check if escaped hostname or regular hostname
-                if (hostname.matches("X+@.*")){
-                    //one or more X at the beginning, followed by @ and any sequence of characters
-                    hostname = hostname.substring(1);
-                }
-
                 //escaped hostname or regular hostname
                 for (CloudflareRecord updatedRecord : updatedRecords){
-                    if(updatedRecord.name.equalsIgnoreCase(hostname)){
+                    if(updatedRecord.name.equalsIgnoreCase(evaluated_hostname.getValue())){
                         hostnameUpdateSuccess[i] = true;
                         break;
                     }
                 }
                 for (CloudflareRecord r : records){
-                    if(r.name.equalsIgnoreCase(hostname)){
+                    if(r.name.equalsIgnoreCase(evaluated_hostname.getValue())){
                         hostnameFoundSuccess[i] = true;
                         break;
                     }
@@ -408,19 +404,15 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         //weird escape thingies:
         //      use n times the character 'X' followed by '@' for escaping and n-1 times the character 'X':
         //          "@bla"          ->  wildcard on .... ending with "bla"
-        //          "XXX@bla"       ->  concrete address "XX@bla"
-        //          "XXtest@bla"    ->  concrete address "XXtest@bla"
+        //          "XXX@bla"       ->  address "XX@bla"
+        //          "XXtest@bla"    ->  address "XXtest@bla"
 
         for (String hostname : hostnames) {
-            if (hostname.startsWith("@")){
-                //wildcard
-                queryBuilder.appendQueryParameter("name.endswith", hostname.substring(1));
-            } else if (hostname.matches("X+@.*")) { //one or more X at the beginning, followed by @ and any sequence of characters
-                //escaped hostname
-                queryBuilder.appendQueryParameter("name", hostname.substring(1));
+            Pair<Boolean, String> evaluatedHostname = evaluateHostname(hostname);
+            if(evaluatedHostname.getKey()) { //wildcard
+                queryBuilder.appendQueryParameter("name.endswith", evaluatedHostname.getValue());
             }else{
-                //normal hostname
-                queryBuilder.appendQueryParameter("name", hostname);
+                queryBuilder.appendQueryParameter("name", evaluatedHostname.getValue());
             }
         }
 
@@ -454,8 +446,22 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
                 for (int i = 0; i < results.length(); i++) {
                        CloudflareRecord r = CloudflareRecord.parseFromJSON((JSONObject) results.get(i));
-                       if(r != null && r.type == type && !hostname_filter.contains(r.name)){
-                           records.add(r);
+                       if(r != null && r.type == type){
+                           //check if filtered out
+                           boolean filtered_out = false;
+                           for (Pair<Boolean, String> hostnameFilter : evaluated_hostname_filter){
+                               if (hostnameFilter.getKey() && r.name.endsWith(hostnameFilter.getValue())){
+                                   filtered_out = true; //filtered out by wildcard
+                                   break;
+                               }
+                               if (!hostnameFilter.getKey() && r.name.equalsIgnoreCase(hostnameFilter.getValue())){
+                                   filtered_out = true; //filtered out
+                                   break;
+                               }
+                           }
+                            if(!filtered_out){
+                                records.add(r);
+                            }
                        }
                 }
 
@@ -501,6 +507,21 @@ public class DyndnsV2Proxy extends NanoHTTPD {
             }
         } catch (UnknownHostException e) {
             return null;
+        }
+    }
+
+    public static Pair<Boolean, String> evaluateHostname(String hostname){
+        //returns true + suffix for wildcard
+        //and false + hostname for normal hostnames
+        if (hostname.startsWith("@")){
+            //wildcard
+            return new Pair( true, hostname.substring(1));
+        } else if (hostname.matches("X+@.*")) { //one or more X at the beginning, followed by @ and any sequence of characters
+            //escaped hostname
+            return new Pair( false, hostname.substring(1));
+        }else{
+            //normal hostname
+            return new Pair( false, hostname);
         }
     }
 }
