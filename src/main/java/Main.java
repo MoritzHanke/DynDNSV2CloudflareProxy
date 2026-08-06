@@ -16,7 +16,6 @@ public class Main {
 
     static String CONFIG_DEFAULT_KEY_HTTP_active = "HTTP_active";
     static String CONFIG_DEFAULT_KEY_HTTP_port = "HTTP_port";
-
     static String CONFIG_DEFAULT_KEY_HTTPS_active = "HTTPS_active";
     static String CONFIG_DEFAULT_KEY_HTTPS_port = "HTTPS_port";
     static String CONFIG_DEFAULT_KEY_HTTPS_keyStoreFilePath = "HTTPS_keyStoreFilePath";

@@ -1,13 +1,13 @@
 package network;
 
 import fi.iki.elonen.NanoHTTPD;
-import javafx.util.Pair;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONWriter;
 import sun.security.tools.keytool.CertAndKeyGen;
 import sun.security.x509.X500Name;
+import utils.Pair;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManagerFactory;
@@ -26,7 +26,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class DyndnsV2Proxy extends NanoHTTPD {
-
     static Response responseAuthError(){ return newFixedLengthResponse(Response.Status.OK, "text/plain", "badauth");}
     static Response responseNoHosts(){ return newFixedLengthResponse(Response.Status.OK, "text/plain", "notfqdn");}
     static Response responseGoodLocalHostAndMalformedRequest(){ return newFixedLengthResponse(Response.Status.OK, "text/plain", "good 127.0.0.1");}
@@ -120,6 +119,8 @@ public class DyndnsV2Proxy extends NanoHTTPD {
     @Override
     public Response serve(IHTTPSession session){
 
+        System.out.println("Received request: " + session.getQueryParameterString());
+
         //ignore uri
 
         //--------------------------
@@ -167,17 +168,7 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         InetAddress ip = extractInetAddress(ipString);
 
         if(ip == null){
-            String xForwardedFor = session.getHeaders().get("X-Forwarded-For");
-
-            if(xForwardedFor != null){
-                ip = extractInetAddress(xForwardedFor.split(",")[0]);
-            }else{
-                ip = extractInetAddress(session.getHeaders().get("http-client-ip"));
-            }
-        }
-
-        if(ip == null){
-            logger.warning("cant access header back-up-header http-client-ip or it isnt correctly formatted");
+            logger.warning("myip isnt correctly formatted");
             return responseGoodLocalHostAndMalformedRequest();
         }
 
@@ -409,10 +400,15 @@ public class DyndnsV2Proxy extends NanoHTTPD {
 
         for (String hostname : hostnames) {
             Pair<Boolean, String> evaluatedHostname = evaluateHostname(hostname);
+            try{
+
             if(evaluatedHostname.getKey()) { //wildcard
                 queryBuilder.appendQueryParameter("name.endswith", evaluatedHostname.getValue());
             }else{
                 queryBuilder.appendQueryParameter("name", evaluatedHostname.getValue());
+            }
+            }catch (Exception e) {
+                e.printStackTrace();
             }
         }
 
@@ -510,9 +506,8 @@ public class DyndnsV2Proxy extends NanoHTTPD {
         }
     }
 
+    ///returns true + suffix for wildcard and false + hostname for normal hostnames
     public static Pair<Boolean, String> evaluateHostname(String hostname){
-        //returns true + suffix for wildcard
-        //and false + hostname for normal hostnames
         if (hostname.startsWith("@")){
             //wildcard
             return new Pair( true, hostname.substring(1));
