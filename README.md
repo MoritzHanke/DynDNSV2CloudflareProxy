@@ -12,7 +12,7 @@ Due to the dropped support of ``sun.security.tools.keytool`` in ``Java 16``, the
 1. Download the [FAT-Jar](#fat-jar) 
 2. execute it once to generate the ``proxy.conf`` file in your **cwd**
 (or use the ENV ``CONFIG_PATH=/test/x.cfg``(or ``D:\\test\\x.cfg``) for a custom path; similar with ``LOG_PATH``).
-3. Set config values :
+3. Set config values (details see [Usage](#usage)):
 
 (obtain the [API-Token](https://dash.cloudflare.com/profile/api-tokens) and ZONE_ID (on the right in "Overview" when managing your zone) from cloudflare)<br>
 (maybe change ``HTTPS_port`` to some custom port, eg. ``5001``)
@@ -47,11 +47,13 @@ LogTime2Comments=true
 
 Hopefully everything should work now lol
 ### Docker
-1. Download the [FAT-Jar](#fat-jar) and the [Dockerfile + docker-compose](#docker-example-files) and save them into the same directory.
-2. run ``docker compose up`` inside this directory.
-3. Edit the config under ``./proxy_files/proxy.conf`` in the same way as above in Step 3. To change the ``HTTPS-port``, modify the `5001` inside the `docker-compose.yml`.
-4. run ``docker compose up`` and close the terminal if no error occurred (or run with the ``-d`` flag)
-5. Configure your router in the same way as above in Step 5.
+1. Download the [FAT-Jar](#fat-jar) and the [docker-compose](#docker-example-files) to the desired location.
+2. Create local folder ``home`` and move the FAT-Jar there.
+3. Configure the docker-compose.yml (which ports to expose to the machine/docker networks)
+4. Run ``docker compose up`` once.
+5. Edit the newly created config under ``./proxy_files/proxy.conf``. For Details see [Quick-Start](#quick-start) Point 3. (The Port of the server might differ from the port assigned from docker)
+6. Run ``docker compose up``.
+7. Configure your router in the same way as above in Step 5.
 
 ## Usage
 Compile the program or download the [FAT-JAR](#fat-jar)/ [JAR with dependencies and POM](#jar-with-dependencies) from [Releases](#releases).
@@ -132,8 +134,7 @@ maybe missing some, idk know anymore...
 
 
 ## Releases
-### Ver0.1.1 
-Not extensively tested yet but core features should work. If any problems are encountered, please open an Issue with information to replicate it, log entries, config values, ...
+### Latest version
 #### Fat JAR
 Downloadlink: [DyndnsV2_Cloudflare_Proxy.jar](DyndnsV2_Cloudflare_Proxy.jar)
 #### JAR with dependencies
@@ -142,4 +143,4 @@ and
 [pom.xml](pom.xml)
 
 #### Docker example files
-Downloadlink: [Dockerfile](Dockerfile) and [docker-compose.yml](docker-compose.yml)
+Downloadlink: [docker-compose.yml](docker-compose.yml)

@@ -1,14 +1,19 @@
 services:
   dyndns_proxy_im:
     container_name: dyndns_proxy
-    build: .
-    image: dyndns_proxy_im
-    ports:
-#      - "5000:80"
-      - "5001:443"
+    image: amazoncorretto:8-alpine
+    working_dir: /usr/APP/
+#    ports:
+#      - "4080:80"
+#      - "4443:443"
+#    expose:
+#      - 443
+#      - 80
     volumes:
-      - ./proxy_files/:/var/APP/:z
+      - ./proxy_files/:/var/APP/
+      - ./home/:/usr/APP/
     environment:
       - CONFIG_PATH=/var/APP/proxy.conf
       - LOG_PATH=/var/APP/dyndnsproxy.log
-    restart: on-failure
+    command: [ "java", "-jar", "/usr/APP/DyndnsV2_Cloudflare_Proxy.jar", "Main" ]
+    restart: unless-stopped
